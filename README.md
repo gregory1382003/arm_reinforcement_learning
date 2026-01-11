@@ -1,2 +1,2 @@
-# _robotic_arm_DRL -
+# Robotic Arm Reinforcement Learning
 Robotic arm manipulation using deep reinforcement learning
