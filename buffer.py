@@ -3,13 +3,13 @@ import numpy as np
 # it will have state, action, reward, next state, done
 
 class ReplayBuffer():
-    def __init__(self, max_size, input_size, n_actions):
+    def __init__(self, max_size, input_size, n_actions, dtype=np.float32):
         self.mem_size = max_size
         self.mem_ctr = 0
-        self.state_memory = np.zeros((self.mem_size, *input_size))
-        self.next_state_memory = np.zeros((self.mem_size, *input_size))
-        self.action_memory = np.zeros((self.mem_size, n_actions))
-        self.reward_memory = np.zeros(self.mem_size)
+        self.state_memory = np.zeros((self.mem_size, *input_size), dtype=dtype)
+        self.next_state_memory = np.zeros((self.mem_size, *input_size), dtype=dtype)
+        self.action_memory = np.zeros((self.mem_size, n_actions), dtype=dtype)
+        self.reward_memory = np.zeros(self.mem_size, dtype=dtype)
         self.terminal_memory = np.zeros(self.mem_size, dtype=bool)
 
     def store_transitions(self, state, action, reward, next_state, done):
@@ -34,4 +34,3 @@ class ReplayBuffer():
         dones = self.terminal_memory[batch]
 
         return states, actions, rewards, next_states, dones
-

@@ -3,8 +3,6 @@ import torch as T
 import torch.nn.functional as F
 import torch.nn as nn
 import torch.optim as optim
-from torch.distributions.normal import Normal
-import numpy as np
 
 class CriticNetwork(nn.Module):
 
@@ -88,7 +86,6 @@ class ActorNetwork(nn.Module):
 
     def load_checkpoint(self):
         self.load_state_dict(T.load(self.checkpoint_file))
-
 
 
 

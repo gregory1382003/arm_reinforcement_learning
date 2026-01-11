@@ -1,4 +1,3 @@
-import os
 import torch as T
 import torch.nn.functional as F
 import numpy as np
@@ -12,8 +11,8 @@ class Agent:
 
         self.gamma = gamma
         self.tau = tau
-        self.max_action = env.action_space.high
-        self.min_action = env.action_space.low
+        self.max_action = T.tensor(env.action_space.high, dtype=T.float)
+        self.min_action = T.tensor(env.action_space.low, dtype=T.float)
         self.memory = ReplayBuffer(max_size, input_dims, n_actions)
         self.batch_size = batch_size
         self.learn_step_cntr = 0
@@ -41,37 +40,49 @@ class Agent:
                                                   n_actions=n_actions, name='target_critic_2', learning_rate=critic_learning_rate)
 
         self.noise = noise
+        self.max_action = self.max_action.to(self.actor.device)
+        self.min_action = self.min_action.to(self.actor.device)
         self.update_network_parameters(tau=1)
 
     def choose_action(self, observation, validation=False):
         if self.time_step < self.warmup and validation is False:
-            mu = T.tensor(np.random.normal(scale=self.noise, size=(self.n_actions))).to(self.actor.device)
+            mu = self.min_action + (self.max_action - self.min_action) * T.rand(
+                self.n_actions, device=self.actor.device
+            )
         else:
             state = T.tensor(observation, dtype=T.float).to(self.actor.device)
             mu = self.actor.forward(state).to(self.actor.device)
 
-        mu_prime = mu + T.tensor(np.random.normal(scale=self.noise), dtype = T.float).to(self.actor.device)
-        mu_prime = T.clamp(mu_prime, self.min_action[0], self.max_action[0])
+        if validation:
+            mu_prime = mu
+        else:
+            noise = T.tensor(
+                np.random.normal(scale=self.noise, size=self.n_actions),
+                dtype=T.float,
+                device=self.actor.device,
+            )
+            mu_prime = T.clamp(mu + noise, self.min_action, self.max_action)
 
         self.time_step += 1
 
         return mu_prime.cpu().detach().numpy()
 
-    def learn (self):
+    def learn(self):
         if self.memory.mem_ctr < self.batch_size * 10:
-                return
+            return
 
         state, action, reward, next_state, done = self.memory.sample_buffer(self.batch_size)
 
         reward = T.tensor(reward, dtype=T.float).to(self.critic_1.device)
-        done = T.tensor(done).to(self.critic_1.device)
+        done = T.tensor(done, dtype=T.bool).to(self.critic_1.device)
         next_state = T.tensor(next_state, dtype=T.float).to(self.critic_1.device)
         state = T.tensor(state, dtype=T.float).to(self.critic_1.device)
         action = T.tensor(action, dtype=T.float).to(self.critic_1.device)
 
         target_actions = self.target_actor.forward(next_state)
-        target_actions = target_actions + T.clamp(T.tensor(np.random.normal(scale=0.2)), -0.5, 0.5)
-        target_actions = T.clamp(target_actions, self.min_action[0], self.max_action[0])
+        noise = T.clamp(T.randn_like(target_actions) * 0.2, -0.5, 0.5)
+        target_actions = target_actions + noise
+        target_actions = T.clamp(target_actions, self.min_action, self.max_action)
 
         next_q1 = self.target_critic_1.forward(next_state, target_actions)
         next_q2 = self.target_critic_2.forward(next_state, target_actions)
@@ -117,11 +128,11 @@ class Agent:
 
 
     def remember(self, state, action, reward, next_state, done):
-            self.memory.store_transitions(state, action, reward, next_state, done)
+        self.memory.store_transitions(state, action, reward, next_state, done)
 
     def update_network_parameters(self, tau=None):
         if tau is None:
-                tau = self.tau
+            tau = self.tau
 
         actor_params = self.actor.named_parameters()
         critic_1_params = self.critic_1.named_parameters()
@@ -171,6 +182,3 @@ class Agent:
             print("Successfully loaded modules")
         except:
             print("Failed to load modules, Starting from scratch")
-
-
-

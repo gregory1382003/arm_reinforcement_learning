@@ -19,11 +19,20 @@ def main():
         has_offscreen_renderer=True,
         use_camera_obs=True,
         camera_names=("agentview", "robot0_eye_in_hand"),
+        camera_heights=64,
+        camera_widths=64,
         horizon=300,
         reward_shaping=True,
         control_freq=20,
     )
-    env = GymWrapper(env, keys=["object-state", "robot0_proprio-state"])
+    env = GymWrapper(
+        env,
+        keys=[
+            "object-state",
+            "robot0_proprio-state",
+            "robot0_eye_in_hand_image",
+        ],
+    )
 
     use_cv2 = False
     cv2 = None
@@ -56,6 +65,7 @@ def main():
         layer1_size=256,
         layer2_size=128,
         batch_size=128,
+        max_size=10000,
     )
     agent.load_module()
 
@@ -65,17 +75,23 @@ def main():
         action = agent.choose_action(obs, validation=True)
         obs, _, done, _ = env.step(action)
         env.render()
-        obs_dict = env.env._get_observations()
-        eye_img = obs_dict.get("robot0_eye_in_hand_image")
+        eye_img = env.env.sim.render(
+            camera_name="robot0_eye_in_hand",
+            width=env.env.camera_widths[1],
+            height=env.env.camera_heights[1],
+        )
         if eye_img is not None:
             if eye_img.dtype != np.uint8:
                 eye_img = np.clip(eye_img, 0.0, 1.0)
                 eye_img = (eye_img * 255).astype(np.uint8)
             if use_cv2:
-                cv2.imshow("robot0_eye_in_hand", eye_img[:, :, ::-1])
+                display_img = cv2.resize(eye_img, None, fx=3.0, fy=3.0, interpolation=cv2.INTER_NEAREST)
+                cv2.imshow("robot0_eye_in_hand", display_img[:, :, ::-1])
                 cv2.waitKey(1)
             elif img_handle is not None:
                 img_handle.set_data(eye_img)
+                if img_handle.axes is not None:
+                    img_handle.axes.figure.set_size_inches(6, 6)
                 plt.pause(0.001)
         if done:
             obs = env.reset()

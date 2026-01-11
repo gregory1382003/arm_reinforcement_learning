@@ -1,5 +1,6 @@
 import numpy as np
 
+from robosuite.environments.base import register_env
 from robosuite.environments.manipulation.pick_place import PickPlace
 from robosuite.models.arenas import TableArena
 from robosuite.models.tasks import ManipulationTask
@@ -27,6 +28,7 @@ def _build_slot_positions(base_half_size, rows=4, cols=3, margin=(0.02, 0.02), z
     return positions
 
 
+@register_env
 class TubePickPlace(PickPlace):
     def __init__(
         self,
