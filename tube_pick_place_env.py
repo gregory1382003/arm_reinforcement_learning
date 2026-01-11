@@ -2,15 +2,14 @@ import numpy as np
 
 from robosuite.environments.manipulation.pick_place import PickPlace
 from robosuite.models.arenas import TableArena
-from robosuite.models.objects import CylinderObject
 from robosuite.models.tasks import ManipulationTask
 from robosuite.utils.placement_samplers import SequentialCompositeSampler, UniformRandomSampler
 from robosuite.utils.mjcf_utils import array_to_string
 
-from custom_objects import PalletObject
+from custom_objects import PalletObject, TubeObject
 
 
-def _build_slot_positions(base_half_size, rows=4, cols=3, margin=(0.03, 0.03), z_offset=0.002):
+def _build_slot_positions(base_half_size, rows=4, cols=3, margin=(0.02, 0.02), z_offset=0.002):
     x_span = max(base_half_size[0] * 2 - 2 * margin[0], 0.0)
     y_span = max(base_half_size[1] * 2 - 2 * margin[1], 0.0)
     x_spacing = x_span / (cols - 1) if cols > 1 else 0.0
@@ -41,9 +40,9 @@ class TubePickPlace(PickPlace):
         table_offset=(0.0, 0.0, 0.8),
         bin1_pos=(0.0, -0.2, 0.8),
         pallet_xy=(0.2, 0.0),
-        pallet_half_size=(0.18, 0.12, 0.015),
-        slot_radius=0.025,
-        tube_radius=0.015,
+        pallet_half_size=(0.08, 0.1, 0.015),
+        slot_radius=None,
+        tube_radius=0.01,
         tube_half_length=0.06,
         use_camera_obs=True,
         use_object_obs=True,
@@ -59,7 +58,7 @@ class TubePickPlace(PickPlace):
         horizon=300,
         ignore_done=False,
         hard_reset=True,
-        camera_names="agentview",
+        camera_names=("agentview", "robot0_eye_in_hand"),
         camera_heights=256,
         camera_widths=256,
         camera_depths=False,
@@ -71,10 +70,19 @@ class TubePickPlace(PickPlace):
         self.obj_names = ["Tube"]
         self.object_id = 0
         self.table_offset = np.array(table_offset)
-        self.pallet_half_size = np.array(pallet_half_size)
-        self.slot_radius = slot_radius
         self.tube_radius = tube_radius
         self.tube_half_length = tube_half_length
+        tube_length = 2.0 * self.tube_half_length
+        self.hole_depth = tube_length * 0.75
+        pallet_half_size = np.array(pallet_half_size, dtype=float)
+        min_half_z = self.hole_depth / 2.0
+        if pallet_half_size[2] < min_half_z:
+            pallet_half_size = pallet_half_size.copy()
+            pallet_half_size[2] = min_half_z
+        self.pallet_half_size = pallet_half_size
+        if slot_radius is None:
+            slot_radius = self.tube_radius * 1.1
+        self.slot_radius = slot_radius
         self.slot_positions = np.array(_build_slot_positions(self.pallet_half_size))
         self.pallet_pos = np.array(
             [pallet_xy[0], pallet_xy[1], self.table_offset[2] + self.pallet_half_size[2]]
@@ -130,23 +138,32 @@ class TubePickPlace(PickPlace):
         )
         mujoco_arena.set_origin([0, 0, 0])
 
-        self.tube = CylinderObject(
+        self.tube = TubeObject(
             name="Tube",
-            size=[self.tube_radius, self.tube_half_length],
-            rgba=[0.1, 0.6, 0.9, 1.0],
+            radius=self.tube_radius,
+            half_length=self.tube_half_length,
+            rgba=[0.85, 0.1, 0.1, 1.0],
+            include_cap=False,
         )
 
         self.pallet = PalletObject(
             name="Pallet",
             base_half_size=self.pallet_half_size,
             slot_positions=self.slot_positions,
-            base_rgba=[0.55, 0.4, 0.25, 1.0],
+            base_rgba=[0.1, 0.25, 0.7, 1.0],
             slot_rgba=[0.2, 0.2, 0.2, 1.0],
+            slot_size=self.slot_radius,
+            hole_radius=self.slot_radius,
+            hole_depth=self.hole_depth,
+            hole_rgba=[0.08, 0.08, 0.08, 1.0],
+            prototype_radius=self.tube_radius,
+            prototype_half_length=self.tube_half_length,
+            prototype_rgba=[0.85, 0.1, 0.1, 0.3],
+            prototype_center_z=self.pallet_half_size[2] - self.hole_depth + self.tube_half_length,
         )
         self.pallet.get_obj().set("pos", array_to_string(self.pallet_pos))
 
         self.objects = [self.tube]
-        self.visual_objects = []
 
         self.model = ManipulationTask(
             mujoco_arena=mujoco_arena,
