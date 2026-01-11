@@ -9,17 +9,18 @@ from robosuite.wrappers import GymWrapper
 from networks import *
 from td3_torch import *
 from buffer import *
+import tube_pick_place_env  # noqa: F401
 
 if __name__ == '__main__':
 
     if not os.path.exists("tmp/265_proj"):
         os.makedirs("tmp/265_proj")
 
-    env_name = "Door"
+    env_name = "TubePickPlace"
 
     env = suite.make(
         env_name,
-        robots = ["Panda"],
+        robots = ["UR5e"],
         controller_configs = suite.load_controller_config(default_controller="JOINT_VELOCITY"),
         has_renderer=False,
         use_camera_obs=False,
@@ -67,6 +68,5 @@ if __name__ == '__main__':
             agent.save_models()
 
         print(f"Episode:{i} Score: {score}")
-
 
 
